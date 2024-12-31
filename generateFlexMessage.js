@@ -19,7 +19,12 @@ function generateFlexMessageToConfirmEvent(event) {
         calender_of_flex_message,
         separator_component,
         event_time_of_flex_message,
-        separator_component,
+      ]
+    },
+    footer:{
+      type: "box",
+      layout: "vertical",
+      contents:[
         confirm_button_of_flex_messsage
       ]
     }
@@ -197,6 +202,6 @@ function generateFlexMessageWithConfirmButton(event){
     },
     color: "#FF0000",
     style: "primary",
-  }
+  };
   return confirm_button_component;
 }
