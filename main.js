@@ -420,3 +420,10 @@ function notifyEventsInWeek(){
 
   UrlFetchApp.fetch(url, params);
 }
+
+function debugBySpreadSheet(url,debug_str){
+  const spreadsheet = SpreadsheetApp.openByUrl(url);
+  const sheet = spreadsheet.getActiveSheet();
+  var cell = sheet.getRange("A1");
+  cell.setValue(debug_str);
+}
