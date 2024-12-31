@@ -19,7 +19,12 @@ function generateFlexMessageToConfirmEvent(event) {
         calender_of_flex_message,
         separator_component,
         event_time_of_flex_message,
-        separator_component,
+      ]
+    },
+    footer:{
+      type: "box",
+      layout: "vertical",
+      contents:[
         confirm_button_of_flex_messsage
       ]
     }
@@ -129,19 +134,57 @@ function generateFlexMessageWithCalender(event){
 
 // イベントの開始時間，終了時間を表記する
 function generateFlexMessageWithEventTime(event){
-  const event_time_formatted = formatEvent(event);
-  var event_time_component = {
+  const start_time_formated = adjustDate(event.getStartTime())
+  const end_time_formated = adjustDate(event.getEndTime())
+  
+  var event_time_component = 
+  {
     type: "box",
-    layout: "horizontal",
-    contents: [
+    layout: "vertical",
+    margin: "lg",
+    spacing: "sm",
+    contents:[
       {
-        type: "text",
-        text: event_time_formatted,
-        size: "md",
-        align: "center",
+        type: "box",
+        layout: "baseline",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: "開始",
+            size: "md",
+            flex: 1
+          },
+          {
+            type: "text",
+            text: start_time_formated,
+            size: "md",
+            wrap: true,
+            flex: 5
+          }
+        ]
+      },
+      {
+        type: "box",
+        layout: "baseline",
+        spacing: "md",
+        contents:[
+          {
+            type: "text",
+            text: "終了",
+            size: "md",
+            flex: 1
+          },
+          {
+            type: "text",
+            text: end_time_formated,
+            size: "md",
+            wrap: true,
+            flex: 5
+          }
+        ]
       }
     ],
-    margin: "sm"
   };
   return event_time_component;
 }
@@ -159,6 +202,6 @@ function generateFlexMessageWithConfirmButton(event){
     },
     color: "#FF0000",
     style: "primary",
-  }
+  };
   return confirm_button_component;
 }

@@ -20,9 +20,9 @@ var today = new Date();
 var tommorow = new Date(today);
 tommorow.setDate(tommorow.getDate()+1);
 
-// 時間を見やすく調整(ex. 00時00分)
+// 日程を見やすく調整(ex. 00月00日 00時00分)
 function adjustDate(date){
-  return date.getHours().toString().padStart(2,"0")+"時"+date.getMinutes().toString().padStart(2,"0")+"分";
+  return (date.getMonth()+1).toString() + "月" + date.getDate() + "日 "+date.getHours().toString().padStart(2,"0")+"時"+date.getMinutes().toString().padStart(2,"0")+"分";
 }
 // イベントの出力を見やすく調整
 function formatEvent(event){
@@ -419,4 +419,11 @@ function notifyEventsInWeek(){
   };
 
   UrlFetchApp.fetch(url, params);
+}
+
+function debugBySpreadSheet(url,debug_str){
+  const spreadsheet = SpreadsheetApp.openByUrl(url);
+  const sheet = spreadsheet.getActiveSheet();
+  var cell = sheet.getRange("A1");
+  cell.setValue(debug_str);
 }
