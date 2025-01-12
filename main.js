@@ -24,6 +24,9 @@ const GEMINI_API = PropertiesService.getScriptProperties().getProperty("GEMINI_A
 // GEMINI-1.5-flashにプロンプトを投げるurl
 const GEMINI_FLASH_URL = PropertiesService.getScriptProperties().getProperty("GEMINI_FLASH_URL");
 
+// エラーログを記録するためのシートurl
+const ERROR_LOG_SHEET_URL = PropertiesService.getScriptProperties().getProperty("ERROR_LOG_SHEET_URL");
+
 var today = new Date();
 
 var tommorow = new Date(today);
@@ -57,7 +60,7 @@ function em2half(str){
 }
 
 // カレンダー登録処理
-function resisterCalender(json,replytoken){
+function addEvent(json,replytoken){
   /*  登録フォーマット
   {
     "name": "register",
@@ -89,8 +92,8 @@ function resisterCalender(json,replytoken){
         },
         ],
       });
-  }catch(err){
-    // TODO: シートにエラーキャッチできるようにした方がいい？
+  }catch(error){
+    logErrorBySpreadSheet("addEventError",`Error occured by addEvent. ${error}`);
     return JSON.stringify({
       'replyToken': replytoken,
       'messages': [{
@@ -145,7 +148,7 @@ function deleteEventById(event_id){
     handle_delete_message = "このイベントを削除しました．"
   }
   catch(error){
-    // TODO: エラー専用のスプレッドシートに内容書き込むように
+    logErrorBySpreadSheet("deleteEventError",`Error occured by deleteEventById. ${error}`);
     handle_delete_message = "イベントの削除に失敗しました．"
   }
   return handle_delete_message;
@@ -258,7 +261,7 @@ function doPost(e) {
     var parsed_response_json = detectCalendarCommandByMessage(received_message)
     switch(parsed_response_json.name){
       case "register":
-          line_messaging_payload = resisterCalender(parsed_response_json,replytoken);
+          line_messaging_payload = addEvent(parsed_response_json,replytoken);
           break;
       case "削除":
           message = removeCalender(received_message);
@@ -317,9 +320,14 @@ function notifyEventsInDay(){
   UrlFetchApp.fetch(LINE_MESSAGING_POST_URL, params);
 }
 
-function debugBySpreadSheet(url,debug_str){
-  const spreadsheet = SpreadsheetApp.openByUrl(url);
+function logErrorBySpreadSheet(log_error_kind,log_error_message){
+  const spreadsheet = SpreadsheetApp.openByUrl(ERROR_LOG_SHEET_URL);
   const sheet = spreadsheet.getActiveSheet();
-  var cell = sheet.getRange("A1");
-  cell.setValue(debug_str);
+  var insert_log_row = sheet.getLastRow() + 1; // データがある次の行を参照
+  var log_occur_time_cell = sheet.getRange(insert_log_row,1);
+  log_occur_time_cell.setValue((new Date()).toString()); // 現在の時刻を記入
+  var log_error_kind_cell = sheet.getRange(insert_log_row,2);
+  log_error_kind_cell.setValue(log_error_kind); // エラーの種類を記録
+  var log_error_message_cell = sheet.getRange(insert_log_row,3);
+  log_error_message_cell.setValue(log_error_message); // エラー内容を記録
 }
