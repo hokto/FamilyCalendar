@@ -189,6 +189,18 @@ function generateFlexMessageWithEventTime(event){
   return event_time_component;
 }
 
+// イベント配列をもとに表示用FlexMessageを生成（複数の場合はCarousel）
+function generateFlexMessageToDisplayEvents(events) {
+  const bubbles = events.map(event => generateFlexMessageToConfirmEvent(event));
+  if(bubbles.length === 1){
+    return bubbles[0];
+  }
+  return {
+    type: "carousel",
+    contents: bubbles,
+  };
+}
+
 // 間違っていた時の削除ボタンを用意する
 // 削除ボタンを押したときは，返されるidによって削除対象のイベントを特定できるようにする．
 function generateFlexMessageWithConfirmButton(event){

@@ -38,7 +38,7 @@ function adjustDate(date){
 }
 // イベントの出力を見やすく調整
 function formatEvent(event){
-  return (event.getStartTime().getMonth()+1)+"月"+event.getStartTime().getDate()+"日 "+adjustDate(event.getStartTime())+"~"+(event.getEndTime().getMonth()+1)+"月"+event.getEndTime().getDate()+"日 "+adjustDate(event.getEndTime())+" "+event.getTitle();
+  return adjustDate(event.getStartTime())+"~"+adjustDate(event.getEndTime())+" "+event.getTitle();
 }
 // カレンダーを取得
 function getMyCalender(day=new Date(),fowardDay=7){
@@ -145,22 +145,26 @@ function displayEvents(json, replytoken){
   var startday = new Date(json['date']['start-date']);
   var endday = new Date(json['date']['end-date']);
   endday.setDate(endday.getDate() + 1); // 終了日当日を含む
-  var message;
   try{
     var events = calender.getEvents(startday, endday);
     if(events.length === 0){
-      message = "その期間に予定はありません。";
-    } else {
-      message = events.map(e => formatEvent(e)).join("\n");
+      return JSON.stringify({
+        'replyToken': replytoken,
+        'messages': [{'type': 'text', 'text': "その期間に予定はありません。"}]
+      });
     }
+    var contents = generateFlexMessageToDisplayEvents(events);
+    return JSON.stringify({
+      'replyToken': replytoken,
+      'messages': [{'type': 'flex', 'altText': '予定一覧', 'contents': contents}]
+    });
   }catch(error){
     logErrorBySpreadSheet("displayEventsError", `Error occured by displayEvents. ${error}`);
-    message = "予定の取得に失敗しました．もう一度試してください．";
+    return JSON.stringify({
+      'replyToken': replytoken,
+      'messages': [{'type': 'text', 'text': "予定の取得に失敗しました．もう一度試してください．"}]
+    });
   }
-  return JSON.stringify({
-    'replyToken': replytoken,
-    'messages': [{'type': 'text', 'text': message}]
-  });
 }
 
 function deleteEventById(event_id){
