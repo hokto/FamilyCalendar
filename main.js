@@ -140,6 +140,29 @@ function printCalender(cmd){
   return message;
 }
 
+// カレンダー表示処理（Gemini解析結果から日付範囲を受け取って表示）
+function displayEvents(json, replytoken){
+  var startday = new Date(json['date']['start-date']);
+  var endday = new Date(json['date']['end-date']);
+  endday.setDate(endday.getDate() + 1); // 終了日当日を含む
+  var message;
+  try{
+    var events = calender.getEvents(startday, endday);
+    if(events.length === 0){
+      message = "その期間に予定はありません。";
+    } else {
+      message = events.map(e => formatEvent(e)).join("\n");
+    }
+  }catch(error){
+    logErrorBySpreadSheet("displayEventsError", `Error occured by displayEvents. ${error}`);
+    message = "予定の取得に失敗しました．もう一度試してください．";
+  }
+  return JSON.stringify({
+    'replyToken': replytoken,
+    'messages': [{'type': 'text', 'text': message}]
+  });
+}
+
 function deleteEventById(event_id){
   var event = calender.getEventById(event_id);
   var handle_delete_message;
@@ -153,6 +176,39 @@ function deleteEventById(event_id){
   }
   return handle_delete_message;
 }
+// 削除対象のイベントを検索し，確認用FlexMessageを返す
+function searchAndConfirmDelete(json, replytoken){
+  var startday = new Date(json['date']['start-date']);
+  var endday = new Date(json['date']['end-date']);
+  endday.setDate(endday.getDate() + 1);
+  try{
+    var events = calender.getEvents(startday, endday);
+    if(json.title){
+      events = events.filter(e => e.getTitle().includes(json.title));
+    }
+    if(events.length === 0){
+      return JSON.stringify({
+        'replyToken': replytoken,
+        'messages': [{'type': 'text', 'text': "該当する予定が見つかりませんでした。"}]
+      });
+    }
+    var flex_contents = events.map(e => generateFlexMessageToConfirmEvent(e));
+    var contents = flex_contents.length === 1
+      ? flex_contents[0]
+      : {'type': 'carousel', 'contents': flex_contents};
+    return JSON.stringify({
+      'replyToken': replytoken,
+      'messages': [{'type': 'flex', 'altText': '削除する予定の確認', 'contents': contents}]
+    });
+  }catch(error){
+    logErrorBySpreadSheet("searchAndConfirmDeleteError", `Error occured by searchAndConfirmDelete. ${error}`);
+    return JSON.stringify({
+      'replyToken': replytoken,
+      'messages': [{'type': 'text', 'text': "予定の検索に失敗しました．もう一度試してください．"}]
+    });
+  }
+}
+
 // イベント削除ボタンのイベントハンドリング
 function handleDeleteButtonClick(postback_data,replytoken){
     // イベントidを取得してそのイベントを削除する．
@@ -171,43 +227,29 @@ function handleDeleteButtonClick(postback_data,replytoken){
 
 // メッセージから命令内容を検出する
 function detectCalendarCommandByMessage(received_message){
-    const prompt_to_gemini = `文を以下に従うように分析して出力してください．
-  1. メッセージ内容から，ユーザがカレンダーに内容を追加して欲しい意図を含む文であるかどうかを判定する．
-  もし追加して欲しい意図を含む内容ではないと判定すれば，
-  {
-    "name": "undefind"
-  }
-  を返して終了する．
-  もし追加して欲しい意図を含む内容であると判定すれば2.に進む．
-  2. メッセージ内容から「予定の開始日」,「予定の開始時間」，「予定の終了日」，「予定の終了時間」，「予定内容」を抽出する．
-  ここで現在の日付は「${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()}」であり，
-  現在時刻は「${today.getHours()}:${today.getMinutes()}:${today.getSeconds()}」であるとする．
-  ただし，「予定の開始日」「予定の終了日」は，現在の日付を基準にして最も近い未来の日付になるように調整すること．
-  つまり，「現在の日付」に対して「予定の開始日」が過去の日付になっていれば，「未来の開始日」の西暦を「現在の日付」に対して来年にする．
-  もし「予定の開始時間」がなければ"00:00:00"として扱う．
-  もし「予定の終了日」がなければ「予定の開始日」と同じ日として扱う．
-  もし「予定の終了時間」がなければ「予定の開始時間」の一時間後として扱う．
+    const prompt_to_gemini = `あなたはカレンダー操作アシスタントです。メッセージを分析し，JSON形式のみで回答してください。改行・コードブロックは不要です。
 
-  3.に進む
-  3. 
-  {
-      "name": "register",
-      "date": {
-        "start-date":{
-          "day": "予定の開始日",
-          "time": "予定の開始時間",
-        },
-        "end-date": {
-          "day": "予定の終了日",
-          "time": "予定の終了時間",
-        },
-      },
-      "title": "予定内容",
-  }
-  上の形式に沿って出力すること．この際，一切の改行を行わなくて良い．
-  それ以外の出力は行わず，余計な情報の付与も必要ない．
-  また，「予定の開始日」「予定の終了日」は"YYYY/MM/DD"に合うようにすること．
-  「予定の開始時間」「予定の終了時間」は"HH:MM:SS"に合うようにすること．`;
+現在日時: ${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()} ${today.getHours()}:${today.getMinutes()}:${today.getSeconds()}
+
+## 操作の種類
+- register: 予定を追加・登録したい意図
+- display: 予定を確認・見たい意図
+- delete: 予定を削除・取り消したい意図
+- unknown: カレンダー操作の意図が読み取れない
+
+## 出力フォーマット
+
+unknown の場合:
+{"name":"unknown"}
+
+register の場合（日付は現在日時を基準に最も近い未来の日付に調整すること。開始時間不明→"00:00:00"，終了日不明→開始日と同日，終了時間不明→開始の1時間後）:
+{"name":"register","date":{"start-date":{"day":"YYYY/MM/DD","time":"HH:MM:SS"},"end-date":{"day":"YYYY/MM/DD","time":"HH:MM:SS"}},"title":"予定内容"}
+
+display の場合（日付範囲不明なら今日から7日後）:
+{"name":"display","date":{"start-date":"YYYY/MM/DD","end-date":"YYYY/MM/DD"}}
+
+delete の場合（日付範囲不明なら今日から7日後，タイトルヒントなければ空文字）:
+{"name":"delete","date":{"start-date":"YYYY/MM/DD","end-date":"YYYY/MM/DD"},"title":"タイトルのヒント"}`;
 
     const url = `${GEMINI_FLASH_URL}?key=${GEMINI_API}`
           , payload = {
@@ -240,6 +282,21 @@ function detectCalendarCommandByMessage(received_message){
     return JSON.parse(response_json_text)
 }
 
+// 日付・時間・相対日付・カレンダー表示意図のパターンを検出するプリフィルタ
+function containsDatePattern(text) {
+  const normalized = em2half(text); // 全角数字を半角に統一
+  const patterns = [
+    /\d{1,2}[\/\-]\d{1,2}/,                                          // 4/1, 4-1
+    /\d{1,2}月\d{1,2}日/,                                            // 4月1日
+    /今日|明日|明後日/,                                                // 今日, 明日
+    /今週|来週|再来週/,                                                // 来週
+    /月曜|火曜|水曜|木曜|金曜|土曜|日曜/,                              // 曜日
+    /\d{1,2}時/,                                                      // 15時
+    /予定.{0,10}(見|確認|教え|見せ)|(見|確認|教え|見せ).{0,10}予定|スケジュール/, // 表示意図
+  ];
+  return patterns.some(p => p.test(normalized));
+}
+
 function doPost(e) {
   var json=JSON.parse(e.postData.contents);
   var replytoken= json.events[0].replyToken;
@@ -249,7 +306,7 @@ function doPost(e) {
   var group_id=json.events[0].source.groupId;
   if(group_id != GROUP_ID){
     // 一旦余計なapi呼び出し生まないために，決めたグループ以外は実行しないようにする
-    return
+    return;
   }
   var event_type = json.events[0].type;
   var line_messaging_payload;
@@ -258,19 +315,23 @@ function doPost(e) {
   }
   else{
     var received_message=json.events[0].message.text;
-    var parsed_response_json = detectCalendarCommandByMessage(received_message)
+    // 日付パターンがなければカレンダー操作ではないと判断し，Gemini APIを呼ばずに終了
+    if(!containsDatePattern(received_message)){
+      return;
+    }
+    var parsed_response_json = detectCalendarCommandByMessage(received_message);
     switch(parsed_response_json.name){
       case "register":
-          line_messaging_payload = addEvent(parsed_response_json,replytoken);
-          break;
-      case "削除":
-          message = removeCalender(received_message);
-          break;
-      case "表示":
-          message = printCalender(received_message);
-          break;
+        line_messaging_payload = addEvent(parsed_response_json,replytoken);
+        break;
+      case "display":
+        line_messaging_payload = displayEvents(parsed_response_json,replytoken);
+        break;
+      case "delete":
+        line_messaging_payload = searchAndConfirmDelete(parsed_response_json,replytoken);
+        break;
       default:
-          break;
+        return; // unknown: カレンダー操作ではないと判断し返答しない
     }
   }
   UrlFetchApp.fetch(LINE_MESSAGING_REPLY_URL, {
